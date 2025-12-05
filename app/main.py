@@ -101,6 +101,8 @@ class DistrictAdminOut(DistrictAdminBase):
 class StatusUpdateRequest(BaseModel):
     status: str
 
+class LogRequest(BaseModel):
+    message: str
 # = a=============================================================================
 # SECTION 3: SECURITY UTILS (Hashing, Tokens)
 # ==============================================================================
@@ -406,16 +408,28 @@ async def verify(
 
     # Build response - THE FIX IS HERE!
     # Explicitly convert all NumPy types (numpy.bool_, numpy.float32) to
-    # standard Python types (bool, float) before returning.
+   # Build response - THE FIX IS HERE!
+   # ✅ THIS IS THE FIX. ENSURE THIS PART IS EXACTLY LIKE THIS:
+   # ... inside @app.post("/verify") ...
+
+    # Build response
     resp = {
         "status": "ok",
         "epic": epic,
-        "match_score": float(score),          # <-- CONVERTED
-        "match": bool(match),                # <-- CONVERTED
-        "liveness": bool(liveness_ok),        # <-- CONVERTED
-        "verified": bool(verified),          # <-- CONVERTED
-        "fallback_used_or_pending": bool(fallback_used), # <-- CONVERTED
-        "note": "liveness requires multiple frames; send multiple frames for robust check."
+        "match_score": float(score),
+        "match": bool(match),
+        "liveness": bool(liveness_ok),
+        "verified": bool(verified),
+        "fallback_used_or_pending": bool(fallback_used),
+        "note": "liveness requires multiple frames; send multiple frames for robust check.",
+        
+       # 👇 CHANGE THIS LINE 👇
+        "user": {
+            "name": voter.get("name"),
+            "epic_id": epic,
+            "karnatakaConstituencies": voter.get("karnatakaConstituencies"),
+            "parliamentaryConstituencies": voter.get("parliamentaryConstituencies")
+        } if match else None   # 👈 MUST BE 'if match', NOT 'if verified'  
     }
 
     return resp
@@ -483,3 +497,19 @@ async def favicon():
     # return FileResponse("path/to/favicon.ico")
     from fastapi.responses import Response
     return Response(status_code=204)
+
+@app.post("/log-message", tags=["Security"])
+async def log_security_event(data: LogRequest):
+    """
+    Receives security alerts from the frontend (e.g., failed verification attempts).
+    """
+    # Log it to the server console as a WARNING
+    logger.warning(f"🚨 FRONTEND ALERT: {data.message}")
+
+    # (Optional) You could also save this to a MongoDB collection here
+    # MongoConnector().db["security_logs"].insert_one({
+    #     "message": data.message,
+    #     "timestamp": datetime.now(timezone.utc)
+    # })
+
+    return {"status": "logged"}

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from models.vote_model import Vote
-from database.connection import election_collection
+from database.connection import election_collection, voter_collection
 from bson import ObjectId
 import subprocess
 import re
@@ -73,6 +73,40 @@ def cast_vote(vote: Vote):
     election = election_collection.find_one({"_id": election_obj_id})
     if not election:
         raise HTTPException(status_code=404, detail="Election not found.")
+    # ---------------------------------------------------------
+    # 🔒 NEW SECURITY: SERVER-SIDE CONSTITUENCY CHECK
+    # ---------------------------------------------------------
+    
+    # 1. Fetch the Voter details using the EPIC ID from the vote
+    voter = voter_collection.find_one({"epic": vote.epic_id}) # Note: key might be "epic" or "epic_id" depending on your schema. Checked main.py, it seems to be "epic".
+    if not voter:
+        raise HTTPException(status_code=404, detail="Voter record not found.")
+
+    # 2. Get Election Requirements
+    election_type = election.get("election_type", "")
+    required_constituency = election.get("constituency", "").strip().lower()
+    
+    # 3. Determine Voter's Constituency based on Election Type
+    voter_constituency = ""
+    
+    # Check if it's an MLA/Assembly election
+    if "MLA" in election_type or "Assembly" in election_type:
+        voter_constituency = voter.get("karnatakaConstituencies", "").strip().lower()
+    # Check if it's an MP/Parliament election
+    elif "MP" in election_type or "Parliament" in election_type:
+        voter_constituency = voter.get("parliamentaryConstituencies", "").strip().lower()
+    
+    # 4. Strictly Compare
+    if voter_constituency != required_constituency:
+        print(f"SECURITY ALERT: User {vote.epic_id} from '{voter_constituency}' tried to vote in '{required_constituency}'")
+        raise HTTPException(
+            status_code=403, 
+            detail=f"Unauthorized: You belong to '{voter_constituency}', but this election is for '{required_constituency}'."
+        )
+
+    # ---------------------------------------------------------
+    # END SECURITY CHECK
+    # ---------------------------------------------------------
 
     # ✅ Verify candidate
     candidate_names = [c["name"] for c in election.get("candidates", [])]

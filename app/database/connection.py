@@ -1,9 +1,12 @@
+# app/database/connection.py
+
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
 
 # Load environment variables
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "../.env"))
+# (Note: Adjust path if needed depending on where .env is located relative to this file)
 
 MONGO_URI = os.getenv("MONGO_URI")
 DB_NAME = os.getenv("MONGO_DB")
@@ -18,3 +21,5 @@ db = client[DB_NAME]
 
 election_collection = db["elections"]
 vote_collection = db["votes"]
+# ✅ NEW: Export the voters collection so other routes can verify users
+voter_collection = db["voters"]

@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import date
+from datetime import datetime
 
 class Candidate(BaseModel):
     name: str
@@ -16,3 +17,7 @@ class Election(BaseModel):
     election_date: date
     candidates: List[Candidate]
     constituency: str = Field(..., example="Hiriyur")
+    
+    # ✅ NEW FIELDS
+    start_time: str  # Format: "HH:MM" (e.g., "07:00")
+    end_time: str    # Format: "HH:MM" (e.g., "18:00")
